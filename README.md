@@ -54,8 +54,3 @@ De app toont een balkgrafiek met het netto resultaat per maand, waarbij je onein
 
 MIT © 2025
 
----
-
-## Auteur
-
-Gemaakt door ChatGPT (OpenAI)
