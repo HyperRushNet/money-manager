@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Money Manager Simpel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+      color: #334e68;
+    }
+    .container {
+      max-width: 700px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+    .balance {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .note {
+      text-align: center;
+      font-size: 14px;
+      color: #627d98;
+      margin-bottom: 20px;
+    }
+    form {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    form input, form select, form button {
+      padding: 12px;
+      font-size: 15px;
+      border: 1px solid #bcccdc;
+      border-radius: 8px;
+    }
+    form button {
+      grid-column: span 3;
+      background: #33658a;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: background .3s;
+    }
+    form button:hover {
+      background: #274766;
+    }
+    #resetBtn {
+      background: #d1495b;
+      margin-top: 10px;
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background .3s;
+    }
+    #resetBtn:hover {
+      background: #a93647;
+    }
+    ul {
+      list-style: none;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 30px;
+    }
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f0f4f8;
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      transition: transform .2s;
+    }
+    li:hover {
+      transform: scale(1.01);
+    }
+    .income { color: #3fc1c9; }
+    .expense { color: #fc5185; }
+    .delete-btn {
+      font-size: 20px;
+      cursor: pointer;
+      color: #627d98;
+      transition: color .2s;
+    }
+    .delete-btn:hover {
+      color: #d1495b;
+    }
+    canvas { width: 100% !important; max-height: 200px; }
+    @media (max-width: 600px) {
+      form { grid-template-columns: 1fr; }
+      form button { grid-column: span 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Money Manager Simpel</h1>
+    <div class="balance">Saldo: €<span id="balance">0.00</span></div>
+    <div class="note">€10 per maand automatisch vanaf 1 dec 2024</div>
+
+    <form id="transactionForm">
+      <input type="text" id="desc" placeholder="Omschrijving" required />
+      <input type="number" id="amount" placeholder="Bedrag" required step="0.01" />
+      <select id="type" required>
+        <option value="income">Inkomen</option>
+        <option value="expense">Uitgave</option>
+      </select>
+      <button type="submit">Toevoegen</button>
+    </form>
+    <button id="resetBtn">Alles Resetten</button>
+
+    <ul id="transactions"></ul>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const startDate = new Date("2024-12-01");
+    const monthlyAmount = 10;
+    let transactions = [];
+    let idCounter = 0;
+    let chart;
+
+    function pad(n){ return n<10? '0'+n : n; }
+
+    // Maandelijkse automatische inkomsten vanaf startdatum
+    function ensureAutoIncome(){
+      const now = new Date();
+      let cur = new Date(startDate);
+      while(cur <= now){
+        const id = `auto-${cur.getFullYear()}-${pad(cur.getMonth()+1)}`;
+        if(!transactions.find(t=>t.id===id)){
+          transactions.push({
+            id,
+            desc: `Maandinkomen ${cur.getFullYear()}-${pad(cur.getMonth()+1)}`,
+            amount: monthlyAmount,
+            type: 'income'
+          });
+        }
+        cur.setMonth(cur.getMonth()+1);
+      }
+    }
+
+    function save(){
+      localStorage.setItem('transactions', JSON.stringify(transactions));
+    }
+    function load(){
+      const data = JSON.parse(localStorage.getItem('transactions'));
+      if(Array.isArray(data)){
+        transactions = data;
+        const manual = transactions.filter(t=>!t.id.startsWith('auto-'));
+        idCounter = manual.length? Math.max(...manual.map(t=>+t.id)) : 0;
+      }
+    }
+    function updateBalance(){
+      const total = transactions.reduce((s,t)=> s + (t.type==='income'? t.amount : -t.amount), 0);
+      document.getElementById('balance').textContent = total.toFixed(2);
+    }
+
+    function renderList(){
+      const ul = document.getElementById('transactions');
+      ul.innerHTML = '';
+      transactions.forEach(t=>{
+        const li = document.createElement('li');
+        li.className = t.type;
+        li.innerHTML = `
+          <span>${t.desc}</span>
+          <div>
+            <span class="${t.type}">${t.type==='income'?'+':'-'}€${t.amount.toFixed(2)}</span>
+            ${!t.id.startsWith('auto-') ? `<span class="delete-btn" onclick="deleteTx('${t.id}')">🗑️</span>` : ''}
+          </div>`;
+        ul.appendChild(li);
+      });
+      renderChart();
+    }
+
+    function renderChart(){
+      const inc = transactions.filter(t=>t.type==='income')
+                   .reduce((s,t)=>s+t.amount,0);
+      const exp = transactions.filter(t=>t.type==='expense')
+                   .reduce((s,t)=>s+t.amount,0);
+      const data = { labels:['Inkomen','Uitgave'], datasets:[{ data:[inc,exp], backgroundColor:['#3fc1c9','#fc5185'] }] };
+      if(chart) chart.destroy();
+      chart = new Chart(document.getElementById('chart'),{ type:'doughnut', data, options:{ plugins:{ legend:{ position:'bottom' } } } });
+    }
+
+    function deleteTx(id){
+      transactions = transactions.filter(t=>t.id!==id);
+      save(); renderList(); updateBalance();
+    }
+
+    document.getElementById('transactionForm').addEventListener('submit', e=>{
+      e.preventDefault();
+      const desc = e.target.desc.value.trim();
+      const amount = parseFloat(e.target.amount.value);
+      const type = e.target.type.value;
+      if(!desc||isNaN(amount)) return;
+      const tx = { id: (++idCounter).toString(), desc, amount, type };
+      transactions.push(tx);
+      save(); renderList(); updateBalance();
+      e.target.reset();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      if(confirm('Weet je zeker dat je alles wilt resetten?')){
+        transactions = [];
+        idCounter = 0;
+        localStorage.removeItem('transactions');
+        init();
+      }
+    });
+
+    function init(){
+      load();
+      ensureAutoIncome();
+      save();
+      renderList();
+      updateBalance();
+    }
+
+    init();
+  </script>
+</body>
+</html>
