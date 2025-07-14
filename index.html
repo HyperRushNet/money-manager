@@ -3,238 +3,193 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Money Manager Simpel</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
-      color: #334e68;
-    }
-    .container {
-      max-width: 700px;
-      margin: 40px auto;
-      background: #fff;
-      padding: 30px;
-      border-radius: 16px;
-      box-shadow: 0 12px 24px rgba(0,0,0,0.1);
-    }
-    h1 {
-      text-align: center;
-      font-size: 32px;
-      margin-bottom: 10px;
-    }
-    .balance {
-      text-align: center;
-      font-size: 24px;
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-    .note {
-      text-align: center;
-      font-size: 14px;
-      color: #627d98;
-      margin-bottom: 20px;
-    }
-    form {
-      display: grid;
-      grid-template-columns: 2fr 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-    form input, form select, form button {
-      padding: 12px;
-      font-size: 15px;
-      border: 1px solid #bcccdc;
-      border-radius: 8px;
-    }
-    form button {
-      grid-column: span 3;
-      background: #33658a;
-      color: #fff;
-      border: none;
-      cursor: pointer;
-      transition: background .3s;
-    }
-    form button:hover {
-      background: #274766;
-    }
-    #resetBtn {
-      background: #d1495b;
-      margin-top: 10px;
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 8px;
-      color: white;
-      cursor: pointer;
-      font-size: 16px;
-      transition: background .3s;
-    }
-    #resetBtn:hover {
-      background: #a93647;
-    }
-    ul {
-      list-style: none;
-      max-height: 300px;
-      overflow-y: auto;
-      margin-bottom: 30px;
-    }
-    li {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f0f4f8;
-      padding: 12px 16px;
-      border-radius: 10px;
-      margin-bottom: 10px;
-      transition: transform .2s;
-    }
-    li:hover {
-      transform: scale(1.01);
-    }
-    .income { color: #3fc1c9; }
-    .expense { color: #fc5185; }
-    .delete-btn {
-      font-size: 20px;
-      cursor: pointer;
-      color: #627d98;
-      transition: color .2s;
-    }
-    .delete-btn:hover {
-      color: #d1495b;
-    }
-    canvas { width: 100% !important; max-height: 200px; }
-    @media (max-width: 600px) {
-      form { grid-template-columns: 1fr; }
-      form button { grid-column: span 1; }
-    }
-  </style>
+  <title>Money Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
-  <div class="container">
-    <h1>Money Manager Simpel</h1>
-    <div class="balance">Saldo: €<span id="balance">0.00</span></div>
-    <div class="note">€10 per maand automatisch vanaf 1 dec 2024</div>
+<body class="bg-gray-100 text-gray-800 p-6">
+  <div class="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow-md">
+    <h1 class="text-3xl font-bold text-center mb-4">💰 Money Tracker</h1>
+    <div class="text-center text-xl font-semibold mb-6">Saldo: €<span id="balance">0.00</span></div>
 
-    <form id="transactionForm">
-      <input type="text" id="desc" placeholder="Omschrijving" required />
-      <input type="number" id="amount" placeholder="Bedrag" required step="0.01" />
-      <select id="type" required>
+    <form id="form" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <input id="desc" required placeholder="Omschrijving" class="col-span-2 border rounded px-3 py-2" />
+      <input id="amount" type="number" required placeholder="Bedrag" step="0.01" class="border rounded px-3 py-2" />
+      <select id="type" class="border rounded px-3 py-2">
         <option value="income">Inkomen</option>
         <option value="expense">Uitgave</option>
       </select>
-      <button type="submit">Toevoegen</button>
+      <button type="submit" class="col-span-1 md:col-span-4 bg-blue-600 text-white py-2 rounded">Toevoegen</button>
     </form>
-    <button id="resetBtn">Alles Resetten</button>
 
-    <ul id="transactions"></ul>
-    <canvas id="chart"></canvas>
+    <button id="resetBtn" class="w-full bg-red-600 text-white py-2 mb-6 rounded">Reset alles</button>
+
+    <ul id="list" class="space-y-2 max-h-64 overflow-y-auto mb-6"></ul>
+
+    <div class="flex justify-between items-center mb-2">
+      <button id="prevBtn" class="bg-gray-300 px-4 py-1 rounded hover:bg-gray-400">← Vorige</button>
+      <button id="nextBtn" class="bg-gray-300 px-4 py-1 rounded hover:bg-gray-400">Volgende →</button>
+    </div>
+    <canvas id="chart" height="200"></canvas>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     const startDate = new Date("2024-12-01");
-    const monthlyAmount = 10;
+    const monthlyIncome = 10;
     let transactions = [];
     let idCounter = 0;
     let chart;
+    let chartPage = 0;
+    let maxMonths = window.innerWidth < 640 ? 3 : 6;
 
-    function pad(n){ return n<10? '0'+n : n; }
+    const balanceEl = document.getElementById("balance");
+    const list = document.getElementById("list");
+    const form = document.getElementById("form");
+    const resetBtn = document.getElementById("resetBtn");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
 
-    // Maandelijkse automatische inkomsten vanaf startdatum
-    function ensureAutoIncome(){
+    function load() {
+      const data = JSON.parse(localStorage.getItem("transactions"));
+      if (Array.isArray(data)) {
+        transactions = data;
+        const manual = transactions.filter(t => !t.id.startsWith("auto-"));
+        idCounter = manual.length ? Math.max(...manual.map(t => +t.id)) : 0;
+      }
+    }
+
+    function save() {
+      localStorage.setItem("transactions", JSON.stringify(transactions));
+    }
+
+    function ensureMonthlyIncome() {
+      // genereer auto-inkomen alleen op transaction load
       const now = new Date();
-      let cur = new Date(startDate);
-      while(cur <= now){
-        const id = `auto-${cur.getFullYear()}-${pad(cur.getMonth()+1)}`;
-        if(!transactions.find(t=>t.id===id)){
+      let current = new Date(startDate);
+      while (current <= now) {
+        const key = `auto-${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}`;
+        if (!transactions.some(t => t.id === key)) {
           transactions.push({
-            id,
-            desc: `Maandinkomen ${cur.getFullYear()}-${pad(cur.getMonth()+1)}`,
-            amount: monthlyAmount,
-            type: 'income'
+            id: key,
+            desc: `Maandinkomen ${key.slice(5)}`,
+            amount: monthlyIncome,
+            type: "income",
+            date: current.toISOString()
           });
         }
-        cur.setMonth(cur.getMonth()+1);
+        current.setMonth(current.getMonth()+1);
       }
     }
 
-    function save(){
-      localStorage.setItem('transactions', JSON.stringify(transactions));
-    }
-    function load(){
-      const data = JSON.parse(localStorage.getItem('transactions'));
-      if(Array.isArray(data)){
-        transactions = data;
-        const manual = transactions.filter(t=>!t.id.startsWith('auto-'));
-        idCounter = manual.length? Math.max(...manual.map(t=>+t.id)) : 0;
-      }
-    }
-    function updateBalance(){
-      const total = transactions.reduce((s,t)=> s + (t.type==='income'? t.amount : -t.amount), 0);
-      document.getElementById('balance').textContent = total.toFixed(2);
+    function updateBalance() {
+      const total = transactions.reduce((sum, t) =>
+        sum + (t.type === "income" ? t.amount : -t.amount)
+      , 0);
+      balanceEl.textContent = total.toFixed(2);
     }
 
-    function renderList(){
-      const ul = document.getElementById('transactions');
-      ul.innerHTML = '';
-      transactions.forEach(t=>{
-        const li = document.createElement('li');
-        li.className = t.type;
+    function renderTransactions() {
+      list.innerHTML = "";
+      transactions.forEach(t => {
+        const li = document.createElement("li");
+        li.className = "flex justify-between items-center bg-gray-100 rounded px-4 py-2";
         li.innerHTML = `
           <span>${t.desc}</span>
-          <div>
-            <span class="${t.type}">${t.type==='income'?'+':'-'}€${t.amount.toFixed(2)}</span>
-            ${!t.id.startsWith('auto-') ? `<span class="delete-btn" onclick="deleteTx('${t.id}')">🗑️</span>` : ''}
-          </div>`;
-        ul.appendChild(li);
+          <span class="flex items-center gap-2">
+            <span class="${t.type==='income'?'text-green-600':'text-red-600'}">
+              ${t.type==='income'?'+':'-'}€${t.amount.toFixed(2)}
+            </span>
+            ${!t.id.startsWith("auto-")?`<button onclick="remove('${t.id}')" class="text-gray-500 hover:text-black">🗑</button>`:""}
+          </span>`;
+        list.appendChild(li);
       });
-      renderChart();
     }
 
-    function renderChart(){
-      const inc = transactions.filter(t=>t.type==='income')
-                   .reduce((s,t)=>s+t.amount,0);
-      const exp = transactions.filter(t=>t.type==='expense')
-                   .reduce((s,t)=>s+t.amount,0);
-      const data = { labels:['Inkomen','Uitgave'], datasets:[{ data:[inc,exp], backgroundColor:['#3fc1c9','#fc5185'] }] };
-      if(chart) chart.destroy();
-      chart = new Chart(document.getElementById('chart'),{ type:'doughnut', data, options:{ plugins:{ legend:{ position:'bottom' } } } });
+    function remove(id) {
+      transactions = transactions.filter(t => t.id !== id);
+      save();
+      render();
     }
 
-    function deleteTx(id){
-      transactions = transactions.filter(t=>t.id!==id);
-      save(); renderList(); updateBalance();
+    function getMonthData(index) {
+      // index 0 = startDate, 1 = next month, -1 = month vóór startDate, etc.
+      const d = new Date(startDate.getFullYear(), startDate.getMonth() + index, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      // bereken netto in transactions
+      let net = 0;
+      transactions.forEach(t => {
+        const td = new Date(t.date);
+        const tk = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}`;
+        if (tk === key) net += (t.type==="income"? t.amount : -t.amount);
+      });
+      return { month: key, value: +net.toFixed(2) };
     }
 
-    document.getElementById('transactionForm').addEventListener('submit', e=>{
+    function renderChart() {
+      // genereer array van maxMonths elementen vanaf chartPage*maxMonths
+      const startIndex = chartPage * maxMonths;
+      const slice = [];
+      for (let i = startIndex; i < startIndex + maxMonths; i++) {
+        slice.push(getMonthData(i));
+      }
+
+      const labels = slice.map(d => d.month);
+      const values = slice.map(d => d.value);
+      const colors = values.map(v => v>0? "#22c55e" : v===0? "#f59e0b" : "#ef4444");
+
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById("chart"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{ label:"Netto per maand", data: values, backgroundColor: colors }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero:true, ticks:{ callback: v=>`€${v}` } }
+          }
+        }
+      });
+    }
+
+    form.addEventListener("submit", e => {
       e.preventDefault();
-      const desc = e.target.desc.value.trim();
-      const amount = parseFloat(e.target.amount.value);
-      const type = e.target.type.value;
-      if(!desc||isNaN(amount)) return;
-      const tx = { id: (++idCounter).toString(), desc, amount, type };
-      transactions.push(tx);
-      save(); renderList(); updateBalance();
-      e.target.reset();
+      const desc = document.getElementById("desc").value.trim();
+      const amount = parseFloat(document.getElementById("amount").value);
+      const type = document.getElementById("type").value;
+      if (!desc||isNaN(amount)) return;
+      const date = new Date().toISOString();
+      transactions.push({ id: (++idCounter).toString(), desc, amount, type, date });
+      save();
+      render();
+      form.reset();
     });
 
-    document.getElementById('resetBtn').addEventListener('click', ()=>{
-      if(confirm('Weet je zeker dat je alles wilt resetten?')){
+    resetBtn.addEventListener("click", () => {
+      if (confirm("Alles resetten?")) {
         transactions = [];
         idCounter = 0;
-        localStorage.removeItem('transactions');
+        chartPage = 0;
+        localStorage.removeItem("transactions");
         init();
       }
     });
 
-    function init(){
-      load();
-      ensureAutoIncome();
+    prevBtn.addEventListener("click", () => { chartPage--; renderChart(); });
+    nextBtn.addEventListener("click", () => { chartPage++; renderChart(); });
+
+    function render() {
+      ensureMonthlyIncome();
       save();
-      renderList();
       updateBalance();
+      renderTransactions();
+      renderChart();
+    }
+
+    function init() {
+      load();
+      render();
     }
 
     init();
